@@ -35,7 +35,7 @@ ai-sales-team-claude/
 │   └── sales-strategy.md     # Outreach Readiness   — 20%
 ├── scripts/                # Python utilities (stdlib-first)
 │   ├── analyze_prospect.py   # Website scrape → structured JSON
-│   ├── lead_scorer.py        # BANT + MEDDIC scoring engine
+│   ├── lead_scorer.py        # Weighted multi-category (0-3) scoring engine
 │   ├── contact_finder.py     # Team/leadership extraction
 │   └── generate_pdf_report.py# ReportLab PDF pipeline report
 ├── templates/              # Output templates copied to the user's install
