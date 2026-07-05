@@ -10,7 +10,7 @@
 </p>
 
 > **Your AI-powered sales team, running inside Claude Code.**
-> Research any company, qualify leads with BANT + MEDDIC, map the buying committee, generate personalized outreach, prepare for meetings, and produce professional PDF pipeline reports — all from the command line.
+> Research any company, qualify leads with a weighted fit model, map the buying committee, generate personalized outreach, prepare for meetings, and produce professional PDF pipeline reports — all from the command line.
 
 ---
 
@@ -24,7 +24,7 @@ Type a command in Claude Code and get instant, actionable sales intelligence:
 Launching 5 parallel agents...
   ✓ Company Research & Firmographics    — Fit Score: 82/100
   ✓ Decision Maker Identification       — 4 contacts found
-  ✓ Opportunity Assessment (BANT)       — Score: 78/100
+  ✓ Opportunity Assessment (Fit Model)  — Score: 78/100
   ✓ Competitive Intelligence            — 3 competitors mapped
   ✓ Outreach Strategy & Messaging       — 5-email sequence ready
 
@@ -122,7 +122,7 @@ Installing templates...
 | `/sales prospect <url>` | Full prospect audit — **5 parallel agents** | `PROSPECT-ANALYSIS.md` |
 | `/sales quick <url>` | 60-second prospect snapshot | Terminal output |
 | `/sales research <url>` | Company research & firmographics | `COMPANY-RESEARCH.md` |
-| `/sales qualify <url>` | BANT + MEDDIC lead scoring | `LEAD-QUALIFICATION.md` |
+| `/sales qualify <url>` | Weighted fit-model lead scoring | `LEAD-QUALIFICATION.md` |
 | `/sales contacts <url>` | Decision maker identification | `DECISION-MAKERS.md` |
 | `/sales outreach <prospect>` | Cold outreach email sequence | `OUTREACH-SEQUENCE.md` |
 | `/sales followup <prospect>` | Follow-up email sequence | `FOLLOWUP-SEQUENCE.md` |
@@ -220,7 +220,7 @@ Every prospect gets a **weighted composite score (0-100)** calculated from 5 dim
 │                                                        makers,      │
 │                                                        warm paths   │
 │                                                                     │
-│   Opportunity Quality .... 20%   █████████░░░░░░░░░░░  BANT score,  │
+│   Opportunity Quality .... 20%   █████████░░░░░░░░░░░  Fit score,   │
 │                                                        pain points  │
 │                                                                     │
 │   Competitive Position ... 15%   ███████░░░░░░░░░░░░░  Current      │
@@ -246,33 +246,31 @@ Every prospect gets a **weighted composite score (0-100)** calculated from 5 dim
    0-39     D       ⏸️   Poor Fit — deprioritize or disqualify
 ```
 
-### Qualification Frameworks
+### Qualification Framework
 
 <details>
-<summary><strong>BANT Scoring (0-100)</strong></summary>
+<summary><strong>Weighted Fit Model (0-100)</strong></summary>
 
-Each dimension scored 0-25 from publicly available signals:
+Every signal is rated **0-3** (`0` not found · `1` weak · `2` clear · `3` strong).
+Each category is normalized and weighted; the positive categories sum to 100 and
+Negative Signals apply a penalty of up to 25.
 
-| Dimension | Max | Signals |
-|-----------|-----|---------|
-| **Budget** | 25 | Funding, employee count, pricing pages, tech spend |
-| **Authority** | 25 | Decision makers found, C-suite identified, org chart |
-| **Need** | 25 | Pain points, job posts, reviews, competitor gaps |
-| **Timeline** | 25 | Recent funding, hiring, contract cycles, urgency |
+| Category | Weight | Signals |
+|----------|--------|---------|
+| **Lead Fit** | 30 | Industry/segment/org-type match, inherent need for the solution category |
+| **Buying Signals** | 30 | Category mentions, stated pain, active evaluation, related initiatives |
+| **Tech Stack** | 15 | Incumbent solution, legacy/aging stack, adjacent systems, integration surface |
+| **Timing & Intent** | 15 | Open RFPs, relevant hiring, funding/growth, launches, leadership change |
+| **Engagement** | 10 | Site visits, content downloads, webinar attendance, replies, meetings booked |
+| **Negative Signals** | −25 | Too small, wrong segment, no visible need, recent competitor purchase, bad geo fit |
 
-</details>
+```
+Fit Score = Σ(weight × normalized)  −  25 × negative_normalized   (clamped 0-100)
+```
 
-<details>
-<summary><strong>MEDDIC Assessment (0-100%)</strong></summary>
-
-Each dimension assessed for completeness:
-
-- **M**etrics — Can we quantify the business impact?
-- **E**conomic Buyer — Who controls the budget?
-- **D**ecision Criteria — How will they evaluate solutions?
-- **D**ecision Process — What's their buying process?
-- **I**dentify Pain — Are pain points confirmed?
-- **C**hampion — Is there an internal advocate?
+Variable names are configurable per ICP — the `/sales qualify` skill ships a
+worked example variable set for a learning-management / training vertical, and
+`scripts/lead_scorer.py` computes the score deterministically from a ratings JSON.
 
 </details>
 
@@ -293,7 +291,7 @@ Phase 1: Discovering company information...
 Phase 2: Running parallel analysis (5 agents)...
   ✓ Company Research      — Fit Score: 88/100
   ✓ Contact Discovery     — 6 decision makers found
-  ✓ Opportunity Scoring   — BANT: 82/100
+  ✓ Opportunity Scoring   — Fit: 82/100
   ✓ Competitive Intel     — 4 competitors mapped
   ✓ Outreach Strategy     — 5-email sequence drafted
 
@@ -312,14 +310,15 @@ Output: PROSPECT-ANALYSIS.md
 
 Analyzing notion.so for lead qualification...
 
-  BANT Score: 78/100 (Grade A)
-  ┌────────────────────────────────────┐
-  │ Budget:    ██████████████████░░ 22  │
-  │ Authority: ████████████████░░░░ 18  │
-  │ Need:      ██████████████████░░ 20  │
-  │ Timeline:  ████████████████░░░░ 18  │
-  └────────────────────────────────────┘
-  MEDDIC Completeness: 72%
+  Fit Score: 78/100 (Grade A)
+  ┌──────────────────────────────────────────┐
+  │ Lead Fit        (30) ████████████████░░ .82 │
+  │ Buying Signals  (30) ██████████████░░░░ .71 │
+  │ Tech Stack      (15) ████████████░░░░░░ .60 │
+  │ Timing & Intent (15) ██████████████░░░░ .70 │
+  │ Engagement      (10) ██████████░░░░░░░░ .50 │
+  │ Negative Signals(−25) █░░░░░░░░░░░░░░░░░ .07 │
+  └──────────────────────────────────────────┘
 
 Action: Schedule discovery call — high-priority prospect.
 Output: LEAD-QUALIFICATION.md
@@ -376,7 +375,7 @@ ai-sales-team-claude/
 ├── skills/                            ← 13 sub-skills
 │   ├── sales-prospect/SKILL.md           Full prospect audit (launches 5 agents)
 │   ├── sales-research/SKILL.md           Company research & firmographics
-│   ├── sales-qualify/SKILL.md            Lead qualification (BANT + MEDDIC)
+│   ├── sales-qualify/SKILL.md            Lead qualification (weighted fit model)
 │   ├── sales-contacts/SKILL.md           Decision maker identification
 │   ├── sales-outreach/SKILL.md           Cold outreach email sequences
 │   ├── sales-followup/SKILL.md           Follow-up email generation
@@ -391,13 +390,13 @@ ai-sales-team-claude/
 ├── agents/                            ← 5 parallel subagents
 │   ├── sales-company.md                  Company fit & firmographics (25%)
 │   ├── sales-contacts.md                 Decision maker mapping (20%)
-│   ├── sales-opportunity.md              Opportunity & BANT scoring (20%)
+│   ├── sales-opportunity.md              Opportunity & fit scoring (20%)
 │   ├── sales-competitive.md              Competitive positioning (15%)
 │   └── sales-strategy.md                 Outreach strategy & messaging (20%)
 │
 ├── scripts/                           ← Python utilities
 │   ├── analyze_prospect.py               Website scraping & data extraction
-│   ├── lead_scorer.py                    BANT/MEDDIC scoring engine
+│   ├── lead_scorer.py                    Weighted multi-category scoring engine
 │   ├── contact_finder.py                 Team & leadership extraction
 │   └── generate_pdf_report.py            ReportLab PDF generator
 │

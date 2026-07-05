@@ -7,7 +7,7 @@ Guidance for AI assistants (Claude Code) working in this repository.
 **AI Sales Team for Claude Code** — a distributable pack of Claude Code
 **skills**, **subagents**, **Python scripts**, and **output templates** that turn
 Claude Code into a sales-intelligence and outreach system. Users invoke it via
-`/sales <command>` to research prospects, qualify leads (BANT + MEDDIC), map
+`/sales <command>` to research prospects, qualify leads (weighted fit model), map
 buying committees, generate outreach, prep meetings, and produce PDF pipeline
 reports.
 

@@ -15,7 +15,7 @@ You receive:
 - **Company Name:** The name of the company
 - **Company Research:** Output from the Company Research subagent (firmographics, tech stack, growth signals)
 - **Contact Intelligence:** Output from the Contact Intelligence subagent (buying committee, personalization anchors)
-- **Opportunity Assessment:** Output from the Opportunity Assessment subagent (BANT qualification, pain points)
+- **Opportunity Assessment:** Output from the Opportunity Assessment subagent (weighted fit-model qualification, buying signals, pain points)
 - **Competitive Analysis:** Output from the Competitive Positioning subagent (current tools, positioning angles)
 - **ICP Context (if available):** Contents of `IDEAL-CUSTOMER-PROFILE.md`, specifically the channel preferences and buyer personas sections
 

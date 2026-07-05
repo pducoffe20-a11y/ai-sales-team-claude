@@ -1,11 +1,61 @@
-# Lead Qualification Engine (BANT + MEDDIC)
+# Lead Qualification Engine (Weighted Fit Model)
 
-You are the lead qualification engine for `/sales qualify <url>`. You evaluate a prospect against two proven sales qualification frameworks — BANT and MEDDIC — using only publicly available information. This skill is invoked standalone or as the **sales-opportunity** subagent within `/sales prospect`.
+You are the lead qualification engine for `/sales qualify <url>`. You evaluate a prospect against a **weighted, multi-category fit model** using only publicly available information. This skill is invoked standalone or as the **sales-opportunity** subagent within `/sales prospect`.
 
 ## When This Skill Is Invoked
 
 - **Standalone:** The user runs `/sales qualify <url>`. Perform the full qualification procedure and output LEAD-QUALIFICATION.md.
-- **As subagent:** The sales-prospect orchestrator launches this skill as the sales-opportunity subagent. You receive a discovery briefing with pre-fetched page content. Use it to skip redundant fetches. Return an Opportunity Quality Score (0-100) with structured data.
+- **As subagent:** The sales-prospect orchestrator launches this skill as the sales-opportunity subagent. You receive a discovery briefing with pre-fetched page content. Use it to skip redundant fetches. Return an Opportunity Quality Score (0-100) — which is this model's Fit Score — with structured data.
+
+---
+
+## The Scoring Model
+
+Every prospect is scored across **six categories**. Each category holds a set of
+**signal variables**, and you rate each variable **0-3**:
+
+| Rating | Meaning |
+|--------|---------|
+| **0** | Not found — no evidence |
+| **1** | Weak signal — indirect or inferred |
+| **2** | Clear signal — directly observable |
+| **3** | Strong buying signal — explicit and compelling |
+
+Each category is normalized to 0-1 (`sum of its variable ratings / (3 × variable count)`),
+multiplied by its weight, and summed. The negative category is a **penalty**.
+
+| Category | Weight | What it measures |
+|----------|--------|------------------|
+| **Lead Fit** | 30 | Structural match to the ideal customer — industry, size/segment, org type, inherent need |
+| **Buying Signals** | 30 | Evidence they actively need or are evaluating this category of solution |
+| **Tech Stack** | 15 | Current tooling and integration landscape — incumbent fit, switch potential |
+| **Timing & Intent** | 15 | Trigger events, urgency, active buying-window signals |
+| **Engagement** | 10 | Direct interactions with us (visits, downloads, replies, meetings booked) |
+| **Negative Signals** | −25 | Disqualifiers and penalties |
+
+Positive weights sum to 100. The negative category subtracts up to 25 points.
+
+```
+Fit Score = Σ(category_weight × category_normalized)  −  25 × negative_normalized
+          (clamped to 0-100)
+```
+
+The **variable names are configurable per ICP/vertical.** The set below is a
+worked example for a learning-management / extended-enterprise training seller;
+swap in the variables that matter for your own product. If an
+`IDEAL-CUSTOMER-PROFILE.md` exists in the working directory, calibrate the
+variables and their ratings against it.
+
+**Example variable set (LMS / association / training vertical):**
+
+| Category | Example variables |
+|----------|-------------------|
+| Lead Fit | `industry_fit`, `association_or_training_org`, `employee_or_member_count`, `credentialing_need`, `continuing_education_need`, `compliance_training_need`, `customer_or_partner_training_need` |
+| Buying Signals | `mentions_lms`, `mentions_member_learning`, `mentions_certification`, `mentions_accreditation`, `mentions_workforce_development`, `mentions_digital_transformation`, `mentions_training_scale_problem`, `mentions_content_or_course_catalog` |
+| Tech Stack | `uses_current_lms`, `uses_legacy_lms`, `uses_no_clear_lms`, `uses_association_management_system`, `uses_salesforce_or_crm`, `mentions_integrations` |
+| Timing & Intent | `open_rfp`, `hiring_learning_role`, `recent_funding_or_growth`, `new_program_launch`, `event_or_conference_training_push`, `leadership_change` |
+| Engagement | `website_visit`, `content_download`, `webinar_attendance`, `email_reply`, `linkedin_engagement`, `meeting_booked` |
+| Negative Signals | `too_small`, `education_only_without_extended_enterprise`, `no_training_or_learning_need_visible`, `recent_lms_purchase`, `bad_geo_or_market_fit` |
 
 ---
 
@@ -13,359 +63,135 @@ You are the lead qualification engine for `/sales qualify <url>`. You evaluate a
 
 ### 1.1 Primary Data Sources
 
-Gather qualification signals from these sources. Use `WebFetch` for website pages and `WebSearch` for external data.
+Gather signals from these sources. Use `WebFetch` for website pages and `WebSearch` for external data.
 
-| Source | What to Extract | Qualification Relevance |
-|--------|----------------|------------------------|
-| **Pricing page** | Price points, tiers, enterprise tier, "Contact Sales" | Budget signals, deal size potential |
-| **Careers page** | Open roles, department sizes, growth rate | Budget (hiring = spending), Need (roles reveal pain), Timeline (urgency of hiring) |
-| **Job postings** | Required tools, skills, responsibilities | Tech stack, pain points, current solutions, budget for tools |
-| **Blog / Resources** | Pain point topics, challenges discussed, industry trends | Need validation, problem awareness |
-| **Case studies** | Problems solved, vendors used, results achieved | Need patterns, buying behavior, vendor preferences |
-| **About page** | Company size, stage, mission, leadership | Authority mapping, budget signals |
-| **Review sites (G2, Capterra)** | Reviews of their product, reviews they leave for other tools | Current tool satisfaction, switching signals |
-| **Glassdoor** | Employee reviews mentioning tools, processes, problems | Internal pain points, culture around change |
-| **LinkedIn** | Employee count growth, recent hires, leadership posts | Timeline signals, authority mapping, growth trajectory |
-| **News / Press** | Funding, partnerships, expansions, challenges | Budget signals, timeline triggers, need amplifiers |
-| **Social media** | Company posts, executive posts, engagement | Problem awareness, vendor sentiment, trigger events |
-| **Competitor mentions** | References to competing solutions on their site or job posts | Current solutions, competitive landscape |
+| Source | What to Extract | Feeds Which Category |
+|--------|----------------|----------------------|
+| **Homepage / product pages** | Positioning, stated audience, solution language | Lead Fit, Buying Signals |
+| **Pricing page** | Price points, tiers, enterprise tier, "Contact Sales" | Lead Fit, Negative Signals |
+| **Careers page / job postings** | Open roles, required tools, department growth | Timing & Intent, Tech Stack, Buying Signals |
+| **Blog / Resources** | Pain topics, initiatives, category awareness | Buying Signals |
+| **Case studies / customers** | Problems solved, vendors used | Buying Signals, Tech Stack |
+| **About page** | Company size, stage, org type, mission | Lead Fit |
+| **Review sites (G2, Capterra)** | Current-tool satisfaction, switching signals | Tech Stack, Buying Signals |
+| **Integrations / partners** | Existing systems, integration surface | Tech Stack |
+| **News / Press** | Funding, launches, leadership change, RFPs | Timing & Intent |
+| **Your CRM / marketing tools** | Site visits, downloads, replies, meetings | Engagement |
+| **Social media** | Executive posts, trigger events | Timing & Intent, Buying Signals |
 
 ### 1.2 Signal Extraction Methodology
 
-For each data source, extract signals using this approach:
+For each data source:
 
-1. **Fetch the source** using WebFetch or WebSearch
-2. **Scan for keywords** related to each BANT and MEDDIC dimension
-3. **Classify each signal** as Strong, Moderate, Weak, or Absent
-4. **Record the evidence** (exact quote or paraphrase with source URL)
-5. **Assign confidence level** (High, Medium, Low, Inferred)
+1. **Fetch the source** using WebFetch or WebSearch.
+2. **Scan for evidence** relevant to each category's variables.
+3. **Rate each variable 0-3** using the scale above.
+4. **Record the evidence** (exact quote or paraphrase with source URL) for any rating ≥ 1.
+5. **Assign confidence** (High, Medium, Low, Inferred).
 
 **Confidence level definitions:**
 
 | Confidence | Definition | Example |
 |-----------|-----------|---------|
 | **High** | Directly stated or clearly observable fact | Pricing page shows $499/mo enterprise tier |
-| **Medium** | Reasonable inference from available data | 5 open engineering roles suggests growing tech team |
-| **Low** | Indirect signal requiring interpretation | Blog post about "scaling challenges" suggests growing pains |
-| **Inferred** | Educated guess based on company profile | Series B company likely has $500K+ annual software budget |
+| **Medium** | Reasonable inference from available data | 5 open L&D roles suggests a training build-out |
+| **Low** | Indirect signal requiring interpretation | Blog post about "scaling onboarding" suggests training pain |
+| **Inferred** | Educated guess based on company profile | Series B association likely has budget for an LMS |
 
 ---
 
-## Phase 2: BANT Framework Assessment
+## Phase 2: Rate Each Category
 
-### Budget (0-25 points)
+For every category, rate each variable 0-3 with evidence, then compute the
+category's normalized score. **Only rate above 0 when you have evidence** — an
+absent signal is a 0, not a guess.
 
-**What we are assessing:** Does this prospect have the financial capacity and willingness to purchase our solution?
+Work through the categories in order: **Lead Fit → Buying Signals → Tech Stack →
+Timing & Intent → Engagement → Negative Signals.**
 
-**Signal detection:**
+For each variable, capture:
+- **Variable** and **rating (0-3)**
+- **Evidence** (quote/paraphrase + source URL) for any non-zero rating
+- **Confidence** (High/Medium/Low/Inferred)
 
-| Signal | Points | Confidence | Where to Find |
-|--------|--------|-----------|---------------|
-| Explicit budget mentioned (rare for public data) | 20-25 | High | RFPs, procurement portals |
-| Recent funding round (Series A: +12, B: +16, C+: +20) | 12-20 | High | Crunchbase, press releases |
-| Enterprise pricing tier on their own product | 10-15 | Medium | Their pricing page |
-| Multiple paid SaaS tools visible in tech stack | 8-12 | Medium | Job posts, integration pages |
-| Hiring for roles that use your product category | 10-15 | Medium | Job postings |
-| Employee count suggests adequate budget (50+ employees) | 5-10 | Low | LinkedIn, About page |
-| Cost-conscious signals (all free tools, tiny team) | 0-3 | Medium | Tech stack, team size |
-| Recent layoffs or cost-cutting news | 0-5 | High | News, LinkedIn |
+Category normalized score = `sum(ratings) / (3 × number of variables)`, expressed 0-1.
 
-**Budget scoring rubric:**
-
-| Score | Interpretation |
-|-------|---------------|
-| 20-25 | Strong budget signals. Recent funding or clear enterprise spend. High confidence. |
-| 15-19 | Good budget indicators. Company size and tech spend suggest capacity. |
-| 10-14 | Moderate signals. Budget likely exists but unconfirmed. |
-| 5-9 | Weak signals. Budget is uncertain. May require creative pricing. |
-| 0-4 | Poor budget signals. Early stage, cost-conscious, or financial distress. |
-
-### Authority (0-25 points)
-
-**What we are assessing:** Can we identify who makes the buying decision, and can we access them?
-
-**Signal detection:**
-
-| Signal | Points | Confidence | Where to Find |
-|--------|--------|-----------|---------------|
-| Economic buyer identified by name and title | 20-25 | High | Team page, LinkedIn |
-| Org structure visible (clear hierarchy) | 10-15 | Medium | Team page, LinkedIn, org chart |
-| Decision-making titles found (VP+, C-suite, Director) | 8-12 | Medium | Team page, LinkedIn |
-| Buying committee roles identifiable | 12-18 | Medium | Org structure, LinkedIn |
-| Procurement process visible (vendor portal, RFP process) | 5-10 | Medium | Website, job postings |
-| Flat org / owner-operator (easy authority mapping) | 15-20 | High | Small team, founder-led |
-| Complex enterprise structure (hard to navigate) | 3-8 | Low | Large company, many layers |
-| No leadership info publicly available | 0-5 | Low | Insufficient data |
-
-**Authority scoring rubric:**
-
-| Score | Interpretation |
-|-------|---------------|
-| 20-25 | Clear buying authority identified. Direct path to decision maker. |
-| 15-19 | Key stakeholders identified. Likely buying process understood. |
-| 10-14 | Some authority figures found. Buying process partially mapped. |
-| 5-9 | Limited authority visibility. Need discovery call to map. |
-| 0-4 | Cannot identify decision makers from public data. |
-
-### Need (0-25 points)
-
-**What we are assessing:** Does this prospect have a problem that our solution solves, and are they aware of it?
-
-**Signal detection:**
-
-| Signal | Points | Confidence | Where to Find |
-|--------|--------|-----------|---------------|
-| Explicit pain point mentioned (blog, interview, social) | 20-25 | High | Blog, news, social media |
-| Job posting for role that solves the problem your tool solves | 15-20 | High | Job postings |
-| Negative reviews of their current solution | 12-18 | Medium | G2, Capterra, social media |
-| Blog content about challenges you solve | 10-15 | Medium | Company blog |
-| Competitor product mentioned in job posts | 10-15 | Medium | Job postings |
-| Industry-wide pain point applicable to their segment | 5-10 | Low | Industry reports, news |
-| Feature requests on their own product suggest internal needs | 8-12 | Low | Community forums, social |
-| No visible pain signals | 0-5 | Low | Insufficient data |
-
-**Need scoring rubric:**
-
-| Score | Interpretation |
-|-------|---------------|
-| 20-25 | Clear, validated pain point. Prospect is actively seeking solutions. |
-| 15-19 | Strong need indicators. Problem is real even if not explicitly stated. |
-| 10-14 | Moderate need signals. Likely experiencing the problem. |
-| 5-9 | Weak need signals. Problem may exist but is not a priority. |
-| 0-4 | No visible need. Solution may be premature for this prospect. |
-
-### Timeline (0-25 points)
-
-**What we are assessing:** Is there urgency to buy? What is the likely timeframe for a decision?
-
-**Signal detection:**
-
-| Signal | Points | Confidence | Where to Find |
-|--------|--------|-----------|---------------|
-| RFP or vendor evaluation in progress | 22-25 | High | Procurement portals, news |
-| Active hiring for role that would use your product | 15-20 | High | Job postings |
-| Recent trigger event (funding, leadership change, expansion) | 12-18 | Medium | News, press releases |
-| Budget cycle alignment (fiscal year start, Q4 budget) | 8-12 | Low | Industry norms, fiscal calendar |
-| Contract renewal cycle (annual contracts up for renewal) | 8-12 | Low | Inferred from industry |
-| Seasonal buying patterns for their industry | 5-10 | Low | Industry knowledge |
-| Competitor dissatisfaction signals (recent negative reviews) | 8-12 | Medium | G2, social media |
-| Rapid growth creating urgency | 10-15 | Medium | Hiring pace, funding, news |
-| No urgency signals detected | 0-5 | Low | Insufficient data |
-
-**Timeline scoring rubric:**
-
-| Score | Interpretation |
-|-------|---------------|
-| 20-25 | Active buying process or immediate trigger event. Decision within weeks. |
-| 15-19 | Strong urgency signals. Likely to act within 1-3 months. |
-| 10-14 | Moderate urgency. Timeframe is 3-6 months. |
-| 5-9 | Low urgency. Timeframe is 6-12 months or undefined. |
-| 0-4 | No urgency detected. Long-term nurture candidate. |
-
-### BANT Score Calculation
-
-```
-BANT Score = Budget + Authority + Need + Timeline
-Range: 0-100
-```
+**Calibration reminder:** a 3 requires an explicit, compelling signal; a 2 is a
+clear observable fact; a 1 is weak or inferred. Reserve 3s. Negative-category
+variables follow the same 0-3 scale — a strong disqualifier is a 3 and drives
+the full penalty.
 
 ---
 
-## Phase 3: MEDDIC Framework Assessment
+## Phase 3: Compute the Fit Score
 
-### Metrics
+### 3.1 Assemble the ratings object
 
-**What we are assessing:** What business metrics does this prospect care about? What would success look like to them?
+Assemble your ratings into this JSON shape (the six category objects plus an
+optional `weights` override):
 
-**Research approach:**
-1. Check their homepage for metric claims ("We help companies achieve X")
-2. Read case studies for the metrics they highlight
-3. Check executive LinkedIn posts for KPIs they discuss
-4. Review job postings for OKR/KPI mentions
-5. Analyze their product to infer which metrics their customers care about
-
-**Output format:**
-- Primary metrics they likely care about (3-5)
-- How your solution impacts those metrics
-- Evidence and confidence level for each
-
-### Economic Buyer
-
-**What we are assessing:** Who holds the purse strings? Who gives final approval?
-
-**Research approach:**
-1. Check team/leadership page for C-suite and VP titles
-2. Search LinkedIn for the company + titles like "VP of [relevant department]", "Head of [relevant area]"
-3. For SMBs: founder/CEO is almost always the economic buyer
-4. For mid-market: VP or Director level in the relevant department
-5. For enterprise: May need multiple approvals (VP + Procurement + Legal)
-
-**Output format:**
-- Name and title of likely economic buyer
-- Evidence for why this person is the economic buyer
-- Alternative economic buyers if uncertain
-- Confidence level
-
-### Decision Criteria
-
-**What we are assessing:** What factors will they use to evaluate solutions?
-
-**Research approach:**
-1. Check if they have published evaluation criteria (RFPs, vendor requirements)
-2. Analyze their job postings for tool requirements and evaluation criteria
-3. Look at their current tech stack for patterns (best-of-breed vs suite, cloud-first vs hybrid)
-4. Read reviews they have left for other tools (what do they value?)
-5. Check their industry for common evaluation criteria
-
-**Output format:**
-- Likely evaluation criteria ranked by importance
-- Evidence for each criterion
-- How your solution performs against each criterion
-
-### Decision Process
-
-**What we are assessing:** How does this company buy software/services?
-
-**Research approach:**
-1. Company size: Smaller = faster, simpler process. Larger = committees, procurement
-2. Check for procurement portals, vendor registration pages
-3. Look for compliance requirements (SOC2, GDPR, HIPAA mentions)
-4. Check if they have a dedicated procurement or vendor management team
-5. Analyze their existing tech stack for buying pattern (many tools = decentralized, few = centralized)
-
-**Output format:**
-- Estimated buying process (self-serve, single decision maker, committee, formal procurement)
-- Estimated timeline for the process
-- Key stakeholders likely involved
-- Potential gates or blockers in the process
-
-### Identify Pain
-
-**What we are assessing:** What specific pain points does this prospect experience that we can solve?
-
-**Research approach:**
-1. Read job postings for pain-related language ("we need to fix", "improve our", "build out")
-2. Check Glassdoor reviews for internal frustrations
-3. Read their blog for problem-focused content
-4. Search social media for complaints or challenges they post about
-5. Look at their product reviews for internal process issues
-6. Check industry forums for common pain points in their segment
-
-**Output format for each pain point:**
-- Pain point description
-- Evidence (with source)
-- Severity estimate (Critical / High / Medium / Low)
-- Your solution's relevance to this pain
-- Confidence level
-
-### Champion
-
-**What we are assessing:** Who could be our internal advocate? Who would push for our solution inside the company?
-
-**Research approach:**
-1. Look for mid-level managers in the department that would use your product
-2. Find people who have used your product (or competitors) at previous companies
-3. Identify people who post about problems your product solves
-4. Look for people who recently joined in roles related to your solution area
-5. Find people who engage with your company's content or competitors' content
-
-**Output format:**
-- Potential champion(s) with name, title, and reasoning
-- Connection points (shared connections, communities, interests)
-- Approach strategy for each potential champion
-- Confidence level
-
-### MEDDIC Completeness Score
-
-Calculate the percentage of MEDDIC elements with at least medium confidence:
-
-```
-MEDDIC Completeness = (Elements with Medium+ Confidence / 6) * 100
+```json
+{
+  "company": "Acme Association",
+  "lead_fit": { "industry_fit": 3, "association_or_training_org": 3, "...": 0 },
+  "buying_signals": { "mentions_lms": 2, "...": 0 },
+  "tech_stack": { "uses_legacy_lms": 2, "...": 0 },
+  "timing_and_intent": { "new_program_launch": 3, "...": 0 },
+  "engagement": { "website_visit": 3, "...": 0 },
+  "negative_signals": { "recent_lms_purchase": 0, "...": 0 }
+}
 ```
 
-| Completeness | Interpretation |
-|-------------|---------------|
-| 80-100% | Excellent qualification data. Well-positioned for engagement. |
-| 60-79% | Good data. Some gaps to fill during discovery calls. |
-| 40-59% | Moderate data. Need discovery call to fill gaps before advancing. |
-| 20-39% | Limited data. Early stage research. More intelligence needed. |
-| 0-19% | Insufficient data. May need different research approach or sources. |
+### 3.2 Score it with the helper script (preferred)
 
----
+Run the deterministic scorer for the composite Fit Score:
 
-## Phase 4: Synthesis and Scoring
-
-### 4.1 Opportunity Quality Score (0-100)
-
-Calculate the composite score:
-
-```
-Opportunity Quality Score = (
-    BANT_Score * 0.50 +
-    MEDDIC_Completeness * 0.30 +
-    Urgency_Modifier * 0.20
-)
+```bash
+python3 scripts/lead_scorer.py <ratings.json>
 ```
 
-**Urgency Modifier (0-100):**
-- 80-100: Active buying process or major trigger event in last 30 days
-- 60-79: Recent trigger event (last 90 days) or strong urgency signals
-- 40-59: Moderate urgency (industry trends, gradual pain escalation)
-- 20-39: Low urgency (nice-to-have, future planning)
-- 0-19: No urgency detected
+It returns the `fit_score` (0-100), `lead_grade`, `positive_subtotal`,
+`negative_penalty`, a per-category `breakdown`, and lists of `strong_signals`
+and `active_negative_signals`.
 
-### 4.2 Lead Grade Assignment
+**If the script is unavailable or fails,** compute the score by hand using the
+formula in *The Scoring Model* and note that automated scoring was unavailable.
+Never block the report on the script.
+
+### 3.3 Grade the score
 
 | Grade | Score Range | Label | Recommended Action |
 |-------|-----------|-------|-------------------|
-| **A** | 75-100 | Sales Qualified Lead | Assign to senior rep. Initiate personalized outreach immediately. Multi-thread to buying committee. Prepare custom proposal. |
-| **B** | 50-74 | Marketing Qualified Lead | Begin standard outreach sequence. Schedule discovery call. Gather more MEDDIC data. Nurture with relevant content. |
-| **C** | 25-49 | Information Qualified Lead | Add to long-term nurture. Share thought leadership content. Monitor for trigger events. Re-qualify in 60-90 days. |
-| **D** | 0-24 | Unqualified | Do not pursue actively. Add to awareness campaigns only. Re-evaluate if major changes occur (funding, leadership, growth). |
+| **A+** | 90-100 | Hot Lead | Prioritize immediately. Assign senior rep. Multi-thread within 24 hours. |
+| **A** | 75-89 | Strong Prospect | Begin personalized outreach within 48 hours. Invest in deep research. |
+| **B** | 60-74 | Qualified Lead | Add to active pipeline. Standard outreach. Monitor for trigger events. |
+| **C** | 40-59 | Lukewarm | Nurture with value-add content. Do not hard sell. Re-evaluate in 30-60 days. |
+| **D** | 0-39 | Poor Fit | Deprioritize. Long-term nurture only if one category scores strongly. |
 
-### 4.3 Buying Signals Summary
+### 3.4 Buying Signals Summary
 
-Compile all positive buying signals detected during analysis:
+Compile the strongest positive signals detected (variables rated 2-3):
 
-| Signal | Source | Strength | Relevance |
-|--------|--------|----------|-----------|
-| [signal description] | [where found] | Strong/Moderate/Weak | [how it relates to buying] |
+| Signal | Category | Source | Rating | Relevance |
+|--------|----------|--------|--------|-----------|
+| [variable] | [category] | [where found] | 2/3 | [how it relates to buying] |
 
-### 4.4 Red Flags Summary
+### 3.5 Red Flags Summary
 
-Compile all concerns or negative signals:
+Compile all active negative signals (negative-category variables rated ≥ 1):
 
-| Red Flag | Source | Severity | Mitigation |
-|----------|--------|----------|------------|
-| [flag description] | [where found] | High/Medium/Low | [how to address] |
+| Red Flag | Source | Rating | Mitigation |
+|----------|--------|--------|------------|
+| [variable] | [where found] | 1-3 | [how to address, or why to disqualify] |
 
-### 4.5 Recommended Approach
+### 3.6 Recommended Approach
 
-Based on the qualification data, recommend the sales approach:
+Match the approach to the grade:
 
-**For Grade A leads:**
-- Direct executive outreach
-- Lead with specific ROI calculation
-- Reference their specific pain points and trigger events
-- Prepare for a 2-4 week deal cycle
-
-**For Grade B leads:**
-- Educational outreach
-- Lead with industry insights and best practices
-- Build relationship before pitching
-- Prepare for a 1-3 month deal cycle
-
-**For Grade C leads:**
-- Content nurture
-- Share relevant resources without selling
-- Set trigger-based re-engagement alerts
-- Prepare for a 3-6 month warming period
-
-**For Grade D leads:**
-- Marketing awareness only
-- Add to newsletter/blog distribution
-- Monitor for qualification changes
-- Do not invest individual sales rep time
+- **A+ / A:** Direct, personalized outreach. Lead with the specific trigger event and strongest buying signal. Multi-thread. 2-4 week cycle.
+- **B:** Standard sequence. Lead with the category's value and industry insight. Build the relationship. 1-3 month cycle.
+- **C:** Content nurture. Share resources without selling. Trigger-based re-engagement alerts. 3-6 month warming.
+- **D:** Marketing awareness only. Monitor for qualification changes. No individual rep time.
 
 ---
 
@@ -377,9 +203,9 @@ Write the full output to `LEAD-QUALIFICATION.md` in the current directory:
 # Lead Qualification: [Company Name]
 **URL:** [url]
 **Date:** [current date]
-**Opportunity Quality Score: [X]/100**
-**Lead Grade: [A/B/C/D] — [Label]**
-**BANT Score: [X]/100 | MEDDIC Completeness: [X]%**
+**Fit Score: [X]/100**
+**Lead Grade: [A+/A/B/C/D] — [Label]**
+**Positive Subtotal: [X] | Negative Penalty: [X]**
 
 ---
 
@@ -390,99 +216,90 @@ Write the full output to `LEAD-QUALIFICATION.md` in the current directory:
 | **Company** | [name] |
 | **Industry** | [vertical] |
 | **Employees** | [count] |
-| **BANT Score** | [X]/100 |
-| **MEDDIC Completeness** | [X]% |
-| **Opportunity Quality Score** | [X]/100 |
+| **Fit Score** | [X]/100 |
 | **Lead Grade** | [letter] — [label] |
-| **Urgency Level** | [High/Medium/Low/None] |
+| **Strongest Category** | [category] ([normalized]) |
+| **Weakest Category** | [category] ([normalized]) |
+| **Active Negatives** | [count] |
 | **Recommended Action** | [one-line recommendation] |
 
 ---
 
-## BANT Scorecard
+## Category Scorecard
 
-| Dimension | Score | Key Evidence | Confidence |
-|-----------|-------|-------------|------------|
-| **Budget** | [X]/25 | [most compelling evidence] | [High/Medium/Low/Inferred] |
-| **Authority** | [X]/25 | [most compelling evidence] | [High/Medium/Low/Inferred] |
-| **Need** | [X]/25 | [most compelling evidence] | [High/Medium/Low/Inferred] |
-| **Timeline** | [X]/25 | [most compelling evidence] | [High/Medium/Low/Inferred] |
-| **TOTAL** | **[X]/100** | | |
-
-### Budget Analysis
-[Detailed findings for Budget dimension. All signals detected with evidence and sources.
-Include funding history, tech spend indicators, pricing signals, and budget proxies.]
-
-### Authority Analysis
-[Detailed findings for Authority dimension. Identified decision makers with titles.
-Org structure assessment. Buying process estimation.]
-
-### Need Analysis
-[Detailed findings for Need dimension. Specific pain points detected with evidence.
-Problem awareness level. Current solution satisfaction.]
-
-### Timeline Analysis
-[Detailed findings for Timeline dimension. Trigger events, urgency signals,
-buying cycle estimation, seasonal factors.]
+| Category | Weight | Normalized | Weighted | Key Finding |
+|----------|--------|-----------|----------|-------------|
+| Lead Fit | 30 | [0-1] | [X] | [one-line finding] |
+| Buying Signals | 30 | [0-1] | [X] | [one-line finding] |
+| Tech Stack | 15 | [0-1] | [X] | [one-line finding] |
+| Timing & Intent | 15 | [0-1] | [X] | [one-line finding] |
+| Engagement | 10 | [0-1] | [X] | [one-line finding] |
+| Negative Signals | −25 | [0-1] | −[X] | [one-line finding] |
+| **FIT SCORE** | | | **[X]/100** | |
 
 ---
 
-## MEDDIC Assessment
+## Category Detail
 
-| Element | Finding | Evidence | Confidence |
-|---------|---------|----------|------------|
-| **Metrics** | [what they measure] | [source] | [level] |
-| **Economic Buyer** | [name, title] | [source] | [level] |
-| **Decision Criteria** | [key criteria] | [source] | [level] |
-| **Decision Process** | [how they buy] | [source] | [level] |
-| **Identify Pain** | [specific pain] | [source] | [level] |
-| **Champion** | [potential champion] | [source] | [level] |
+For each category, list every variable rated, its 0-3 rating, evidence, and confidence.
 
-### Metrics Deep Dive
-[Full analysis of what metrics matter to this prospect]
+### Lead Fit
+| Variable | Rating | Evidence | Confidence |
+|----------|--------|----------|------------|
+| [variable] | [0-3] | [evidence + source] | [level] |
 
-### Economic Buyer Profile
-[Detailed profile of the identified economic buyer]
+### Buying Signals
+| Variable | Rating | Evidence | Confidence |
+|----------|--------|----------|------------|
+| [variable] | [0-3] | [evidence + source] | [level] |
 
-### Decision Criteria Assessment
-[Full analysis of evaluation criteria]
+### Tech Stack
+| Variable | Rating | Evidence | Confidence |
+|----------|--------|----------|------------|
+| [variable] | [0-3] | [evidence + source] | [level] |
 
-### Decision Process Map
-[Estimated buying process with stages and stakeholders]
+### Timing & Intent
+| Variable | Rating | Evidence | Confidence |
+|----------|--------|----------|------------|
+| [variable] | [0-3] | [evidence + source] | [level] |
 
-### Pain Point Analysis
-[All identified pain points with severity and evidence]
+### Engagement
+| Variable | Rating | Evidence | Confidence |
+|----------|--------|----------|------------|
+| [variable] | [0-3] | [evidence + source] | [level] |
 
-### Champion Strategy
-[Potential champions and engagement approach]
+### Negative Signals
+| Variable | Rating | Evidence | Confidence |
+|----------|--------|----------|------------|
+| [variable] | [0-3] | [evidence + source] | [level] |
 
 ---
 
 ## Buying Signals Detected
 
-1. **[Signal]** — [Evidence] (Source: [source], Strength: [Strong/Moderate/Weak])
-2. **[Signal]** — [Evidence] (Source: [source], Strength: [Strong/Moderate/Weak])
-3. **[Signal]** — [Evidence] (Source: [source], Strength: [Strong/Moderate/Weak])
-[Continue for all signals]
+1. **[Signal]** — [Evidence] (Category: [category], Source: [source], Rating: [2/3])
+2. **[Signal]** — [Evidence] (Category: [category], Source: [source], Rating: [2/3])
+[Continue for all signals rated 2-3]
 
 ## Red Flags
 
-1. **[Flag]** — [Evidence] (Source: [source], Severity: [High/Medium/Low])
+1. **[Flag]** — [Evidence] (Source: [source], Rating: [1-3])
    *Mitigation:* [how to address]
-2. **[Flag]** — [Evidence] (Source: [source], Severity: [High/Medium/Low])
-   *Mitigation:* [how to address]
-[Continue for all flags]
+[Continue for all active negatives]
 
 ---
 
-## Opportunity Quality Score: [X]/100
+## Fit Score: [X]/100
 
-| Component | Score | Weight | Weighted |
-|-----------|-------|--------|----------|
-| BANT Score | [X]/100 | 50% | [X] |
-| MEDDIC Completeness | [X]/100 | 30% | [X] |
-| Urgency Modifier | [X]/100 | 20% | [X] |
-| **TOTAL** | | **100%** | **[X]/100** |
+| Component | Normalized | Weight | Weighted |
+|-----------|-----------|--------|----------|
+| Lead Fit | [0-1] | 30 | [X] |
+| Buying Signals | [0-1] | 30 | [X] |
+| Tech Stack | [0-1] | 15 | [X] |
+| Timing & Intent | [0-1] | 15 | [X] |
+| Engagement | [0-1] | 10 | [X] |
+| Negative Signals | [0-1] | −25 | −[X] |
+| **TOTAL** | | | **[X]/100** |
 
 ---
 
@@ -491,8 +308,8 @@ buying cycle estimation, seasonal factors.]
 **Lead Grade:** [letter] — [label]
 
 **Strategy:** [2-3 paragraph recommendation on how to approach this prospect.
-Include specific messaging angles, stakeholders to target,
-timeline expectations, and deal size estimate.]
+Include specific messaging angles, stakeholders to target, timeline expectations,
+and deal size estimate.]
 
 ## Next Steps
 
@@ -519,50 +336,46 @@ Display a condensed summary in the terminal:
 Company:  [name]
 Industry: [vertical]
 
-BANT Score: [X]/100
-  Budget:    [XX]/25 ████████░░
-  Authority: [XX]/25 ██████░░░░
-  Need:      [XX]/25 ███████░░░
-  Timeline:  [XX]/25 █████░░░░░
+Fit Score: [X]/100  (Grade: [letter] — [label])
 
-MEDDIC Completeness: [X]%
-  Metrics:          [Found/Partial/Missing]
-  Economic Buyer:   [Found/Partial/Missing]
-  Decision Criteria:[Found/Partial/Missing]
-  Decision Process: [Found/Partial/Missing]
-  Identify Pain:    [Found/Partial/Missing]
-  Champion:         [Found/Partial/Missing]
-
-Opportunity Quality Score: [X]/100
-Lead Grade: [letter] — [label]
+Category Breakdown:
+  Lead Fit         (30) ████████░░  [norm]
+  Buying Signals   (30) ███████░░░  [norm]
+  Tech Stack       (15) █████░░░░░  [norm]
+  Timing & Intent  (15) ██████░░░░  [norm]
+  Engagement       (10) ████░░░░░░  [norm]
+  Negative Signals (−25) █░░░░░░░░░  [norm]  (penalty: −[X])
 
 Top Buying Signals:
   1. [signal]
   2. [signal]
   3. [signal]
 
-Red Flags:
+Active Negatives:
   1. [flag]
-  2. [flag]
 
 Recommended Action: [one-line recommendation]
 
 Full report saved to: LEAD-QUALIFICATION.md
 ```
 
+**Bar chart rendering rules:** each bar is 10 characters; fill = `round(normalized × 10)` blocks using `█` (filled) and `░` (empty).
+
 ---
 
 ## Error Handling
 
-- If the URL is unreachable, attempt alternate formats then report the error
-- If job postings are not publicly accessible, note the gap and use alternative signals
-- If the company has minimal public presence, reduce confidence levels across the board and note data limitations
-- Always produce a qualification report with whatever data is available — even incomplete data is valuable for prioritization
-- If BANT score is below 25 and confidence is Low/Inferred across all dimensions, recommend manual research before any outreach
+- If the URL is unreachable, attempt alternate formats then report the error.
+- If job postings or review sites are not publicly accessible, note the gap and rate the affected variables 0 with a data-limitation note.
+- If the company has minimal public presence, reduce confidence levels across the board and note the limitation.
+- Always produce a qualification report with whatever data is available — even incomplete data is valuable for prioritization.
+- If the Fit Score is below 40 and confidence is Low/Inferred across most categories, recommend manual research before any outreach.
+- If `scripts/lead_scorer.py` fails, compute the score by hand and note that automated scoring was unavailable.
 
 ## Cross-Skill Integration
 
-- If `COMPANY-RESEARCH.md` exists, use it to pre-populate company data and skip redundant research
-- If `DECISION-MAKERS.md` exists, use it for Authority and Champion analysis
-- If `COMPETITIVE-INTEL.md` exists, use it for current solution and switching cost analysis
-- Suggest follow-up: `/sales contacts` for decision maker deep dive, `/sales outreach` for engagement sequence
+- If `IDEAL-CUSTOMER-PROFILE.md` exists, use it to define/calibrate the category variables and their target ratings.
+- If `COMPANY-RESEARCH.md` exists, use it to pre-populate Lead Fit and Tech Stack signals and skip redundant research.
+- If `DECISION-MAKERS.md` exists, use it for Engagement and buying-committee context.
+- If `COMPETITIVE-INTEL.md` exists, use it for Tech Stack (current solution) and switching-cost signals.
+- Suggest follow-up: `/sales contacts` for decision-maker deep dive, `/sales outreach` for engagement sequence.

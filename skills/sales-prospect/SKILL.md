@@ -185,18 +185,20 @@ Launch all 5 subagents simultaneously using Claude Code's Task tool. Each subage
 
 **Skill file:** `skills/sales-qualify/SKILL.md`
 **Weight:** 20% of Prospect Score
-**Focus:** Lead qualification (BANT + MEDDIC), pain point detection, budget signals, buying timeline
+**Focus:** Lead qualification (weighted fit model), buying-signal detection, timing, negative signals
 
 **Task prompt must include:**
 - The full discovery briefing
-- Instruction to produce an Opportunity Quality Score (0-100)
-- Instruction to return structured data: BANT scorecard, MEDDIC assessment, buying signals, red flags, recommended approach
+- Instruction to produce an Opportunity Quality Score (0-100), which is the model's Fit Score
+- Instruction to return structured data: category scorecard (0-3 signal ratings), buying signals, red flags / active negatives, recommended approach
 
-**Expected output:** Opportunity Quality Score (0-100) with breakdown across:
-- Budget signals (0-25): Evidence of budget availability
-- Authority mapped (0-25): Clarity on who decides and how
-- Need confirmed (0-25): Strength of pain point evidence
-- Timeline urgency (0-25): Signals of near-term buying intent
+**Expected output:** Opportunity Quality Score (0-100) = the Fit Score, with breakdown across the six categories:
+- Lead Fit (weight 30): structural match to the ideal customer
+- Buying Signals (weight 30): evidence they actively need/are evaluating this solution
+- Tech Stack (weight 15): current tooling, incumbent fit, switch potential
+- Timing & Intent (weight 15): trigger events and urgency
+- Engagement (weight 10): direct interactions with us
+- Negative Signals (weight −25): disqualifiers applied as a penalty
 
 ### Subagent 4: sales-competitive (Competitive Positioning)
 
@@ -424,26 +426,23 @@ recommended approach, suggested first message]
 
 ## Opportunity Assessment
 
-### BANT Scorecard
+### Fit Scorecard
 
-| Dimension | Score | Evidence | Confidence |
-|-----------|-------|----------|------------|
-| Budget | [X]/25 | [specific evidence] | [High/Medium/Low] |
-| Authority | [X]/25 | [specific evidence] | [High/Medium/Low] |
-| Need | [X]/25 | [specific evidence] | [High/Medium/Low] |
-| Timeline | [X]/25 | [specific evidence] | [High/Medium/Low] |
-| **Total** | **[X]/100** | | |
+| Category | Weight | Normalized | Weighted | Key Evidence | Confidence |
+|----------|--------|-----------|----------|--------------|------------|
+| Lead Fit | 30 | [0-1] | [X] | [specific evidence] | [High/Medium/Low] |
+| Buying Signals | 30 | [0-1] | [X] | [specific evidence] | [High/Medium/Low] |
+| Tech Stack | 15 | [0-1] | [X] | [specific evidence] | [High/Medium/Low] |
+| Timing & Intent | 15 | [0-1] | [X] | [specific evidence] | [High/Medium/Low] |
+| Engagement | 10 | [0-1] | [X] | [specific evidence] | [High/Medium/Low] |
+| Negative Signals | −25 | [0-1] | −[X] | [specific evidence] | [High/Medium/Low] |
+| **Fit Score** | | | **[X]/100** | | |
 
-### MEDDIC Assessment
+### Signal Ratings
 
-| Element | Finding | Evidence | Confidence |
-|---------|---------|----------|------------|
-| Metrics | [what metrics matter to them] | [source] | [level] |
-| Economic Buyer | [who] | [source] | [level] |
-| Decision Criteria | [what factors] | [source] | [level] |
-| Decision Process | [how they buy] | [source] | [level] |
-| Identify Pain | [specific pain points] | [source] | [level] |
-| Champion | [potential champion] | [source] | [level] |
+| Category | Variable | Rating (0-3) | Evidence | Confidence |
+|----------|----------|--------------|----------|------------|
+| [category] | [variable] | [0-3] | [source] | [level] |
 
 ### Buying Signals Detected
 [Bulleted list of positive buying signals with evidence]

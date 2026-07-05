@@ -331,7 +331,7 @@ Write the complete report to `SALES-REPORT.md` in the current working directory.
 
 - Company Fit: 25% of score (firmographics, tech stack, growth signals)
 - Contact Access: 20% of score (decision makers, personalization, warm paths)
-- Opportunity Quality: 20% of score (BANT qualification, pain severity, timeline)
+- Opportunity Quality: 20% of score (weighted fit-model qualification, buying signals, timeline)
 - Competitive Position: 15% of score (current tools, switching costs, advantages)
 - Outreach Readiness: 20% of score (personalization, channel strategy, messaging)
 

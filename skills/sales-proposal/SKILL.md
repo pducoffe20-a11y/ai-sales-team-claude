@@ -39,7 +39,7 @@ Before asking the user for inputs, check for existing analysis files in the work
 
 - **PROSPECT-ANALYSIS.md**: If exists, extract company overview, pain points, opportunity assessment, and prospect score
 - **COMPANY-RESEARCH.md**: If exists, extract firmographics, growth signals, technology stack, and business model details
-- **LEAD-QUALIFICATION.md**: If exists, extract BANT/MEDDIC qualification data, budget signals, decision timeline, and authority mapping
+- **LEAD-QUALIFICATION.md**: If exists, extract fit-model qualification data (category scores, buying signals), decision timeline, and authority mapping
 - **COMPETITIVE-INTEL.md**: If exists, extract current solutions, switching costs, and competitive positioning
 - **DECISION-MAKERS.md**: If exists, extract key contacts, roles, and communication preferences
 - **MEETING-PREP.md**: If exists, extract business situation, attendee profiles, and discovery insights

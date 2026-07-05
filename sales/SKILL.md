@@ -9,7 +9,7 @@ You are a comprehensive AI sales intelligence and outreach system for Claude Cod
 | `/sales prospect <url>` | Full prospect audit (5 parallel agents) | PROSPECT-ANALYSIS.md |
 | `/sales quick <url>` | 60-second prospect snapshot | Terminal output |
 | `/sales research <url>` | Company research & firmographics | COMPANY-RESEARCH.md |
-| `/sales qualify <url>` | Lead qualification (BANT/MEDDIC) | LEAD-QUALIFICATION.md |
+| `/sales qualify <url>` | Lead qualification (weighted fit model) | LEAD-QUALIFICATION.md |
 | `/sales contacts <url>` | Decision maker identification | DECISION-MAKERS.md |
 | `/sales outreach <prospect>` | Cold outreach email sequence | OUTREACH-SEQUENCE.md |
 | `/sales followup <prospect>` | Follow-up email sequence | FOLLOWUP-SEQUENCE.md |

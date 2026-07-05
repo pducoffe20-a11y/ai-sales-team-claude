@@ -606,10 +606,11 @@ def generate_report(data, output_path):
     story.append(Spacer(1, 8))
 
     story.append(Paragraph(
-        "This sales pipeline report uses a BANT + MEDDIC scoring framework to evaluate and rank "
-        "prospects. Each prospect is scored 0-100 based on four BANT dimensions (Budget, Authority, "
-        "Need, Timeline), each weighted equally at 25 points. MEDDIC completeness is assessed "
-        "as a supplementary qualification metric across six dimensions.",
+        "This sales pipeline report uses a weighted multi-category fit model to evaluate and rank "
+        "prospects. Each signal is rated 0-3, and six categories are normalized and weighted into a "
+        "single 0-100 fit score. Five positive categories (Lead Fit, Buying Signals, Tech Stack, "
+        "Timing &amp; Intent, Engagement) sum to 100 points, and a Negative Signals category is "
+        "applied as a penalty of up to 25 points.",
         styles["BodyText2"]
     ))
     story.append(Spacer(1, 10))
@@ -623,10 +624,12 @@ def generate_report(data, output_path):
     method_data = [method_header]
 
     method_rows = [
-        ("Budget", "25 pts", "Funding amount, employee count, pricing visibility, tech spend indicators, enterprise tool usage"),
-        ("Authority", "25 pts", "Decision makers identified, C-suite contacts found, org chart completeness, buying committee mapped"),
-        ("Need", "25 pts", "Pain points detected, relevant job postings, review complaints, competitor dissatisfaction signals"),
-        ("Timeline", "25 pts", "Active hiring for relevant roles, recent funding events, contract renewal timing, urgency mentions"),
+        ("Lead Fit", "30 pts", "Industry/segment/org-type match and inherent need for the solution category"),
+        ("Buying Signals", "30 pts", "Explicit category mentions, stated pain, active evaluation, related initiatives"),
+        ("Tech Stack", "15 pts", "Incumbent solution, legacy or aging stack, adjacent systems, integration surface"),
+        ("Timing & Intent", "15 pts", "Open RFPs, relevant hiring, funding or growth, launches, leadership change"),
+        ("Engagement", "10 pts", "Site visits, content downloads, webinar attendance, replies, meetings booked"),
+        ("Negative Signals", "-25 pts", "Too small, wrong segment, no visible need, recent competitor purchase, bad geo/market fit"),
     ]
 
     for dim, weight, desc in method_rows:
